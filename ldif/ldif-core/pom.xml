@@ -26,6 +26,8 @@
           <groupId>nxparser</groupId>
           <artifactId>nxparser</artifactId>
           <version>1.1</version>
+          <scope>system</scope>
+          <systemPath>${project.basedir}/lib/nxparser-1.1.jar</systemPath>
       </dependency>
 
       <dependency>
@@ -38,89 +40,26 @@
           <groupId>bzip2</groupId>
           <artifactId>bzip2</artifactId>
           <version>0.1</version>
+          <scope>system</scope>
+          <systemPath>${project.basedir}/lib/bzip2-0.1.jar</systemPath>
       </dependency>
 
       <dependency>
           <groupId>ldspider</groupId>
           <artifactId>ldspider</artifactId>
           <version>285+</version>
+          <scope>system</scope>
+          <systemPath>${project.basedir}/lib/ldspider-rev285+.jar</systemPath>
       </dependency>
 
       <dependency>
           <groupId>com.hp.hpl.jena</groupId>
           <artifactId>jena</artifactId>
           <version>2.6.5-SNAPSHOT</version>
+          <scope>system</scope>
+          <systemPath>${project.basedir}/lib/jena-core-2.6.5-incubating-SNAPSHOT.jar</systemPath>
       </dependency>
 
   </dependencies>
-    
 
-    <build>
-        <plugins>
-             <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-install-plugin</artifactId>
-                <version>2.3.1</version>
-                <executions>
-                    <execution>
-                        <id>install-nxparser-jar</id>
-                        <phase>generate-resources</phase>
-                        <goals>
-                            <goal>install-file</goal>
-                        </goals>
-                        <configuration>
-                            <groupId>nxparser</groupId>
-                            <artifactId>nxparser</artifactId>
-                            <version>1.1</version>
-                            <packaging>jar</packaging>
-                            <file>${project.basedir}/lib/nxparser-1.1.jar</file>
-                        </configuration>
-                    </execution>
-                     <execution>
-                        <id>install-bzip2-jar</id>
-                        <phase>generate-resources</phase>
-                        <goals>
-                            <goal>install-file</goal>
-                        </goals>
-                        <configuration>
-                            <groupId>bzip2</groupId>
-                            <artifactId>bzip2</artifactId>
-                            <version>0.1</version>
-                            <packaging>jar</packaging>
-                            <file>${project.basedir}/lib/bzip2-0.1.jar</file>
-                        </configuration>
-                    </execution>
-                     <execution>
-                        <id>install-ldspider-jar</id>
-                        <phase>generate-resources</phase>
-                        <goals>
-                            <goal>install-file</goal>
-                        </goals>
-                        <configuration>
-                            <groupId>ldspider</groupId>
-                            <artifactId>ldspider</artifactId>
-                            <version>285+</version>
-                            <packaging>jar</packaging>
-                            <file>${project.basedir}/lib/ldspider-rev285+.jar</file>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>install-jena-jar</id>
-                        <phase>generate-resources</phase>
-                        <goals>
-                            <goal>install-file</goal>
-                        </goals>
-                        <configuration>
-                            <groupId>com.hp.hpl.jena</groupId>
-                            <artifactId>jena</artifactId>
-                            <version>2.6.5-SNAPSHOT</version>
-                            <packaging>jar</packaging>
-                            <file>${project.basedir}/lib/jena-core-2.6.5-incubating-SNAPSHOT.jar</file>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-        </plugins>
-    </build>
-    
 </project>
