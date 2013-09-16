@@ -287,7 +287,7 @@
         <repository>
             <id>legacy jars</id>
             <name>Legacy Jar Repository</name>
-            <url>https://github.com/dozed/mvn-repo/raw/master/legacy</url>
+            <url>https://github.com/dozed/mvn-repo/raw/master/external</url>
         </repository>
 
         <repository>
