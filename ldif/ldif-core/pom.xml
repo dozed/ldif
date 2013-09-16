@@ -26,8 +26,6 @@
           <groupId>nxparser</groupId>
           <artifactId>nxparser</artifactId>
           <version>1.1</version>
-          <scope>system</scope>
-          <systemPath>${project.basedir}/lib/nxparser-1.1.jar</systemPath>
       </dependency>
 
       <dependency>
@@ -40,24 +38,18 @@
           <groupId>bzip2</groupId>
           <artifactId>bzip2</artifactId>
           <version>0.1</version>
-          <scope>system</scope>
-          <systemPath>${project.basedir}/lib/bzip2-0.1.jar</systemPath>
       </dependency>
 
       <dependency>
           <groupId>ldspider</groupId>
           <artifactId>ldspider</artifactId>
           <version>285+</version>
-          <scope>system</scope>
-          <systemPath>${project.basedir}/lib/ldspider-rev285+.jar</systemPath>
       </dependency>
 
       <dependency>
           <groupId>com.hp.hpl.jena</groupId>
           <artifactId>jena</artifactId>
           <version>2.6.5-SNAPSHOT</version>
-          <scope>system</scope>
-          <systemPath>${project.basedir}/lib/jena-core-2.6.5-incubating-SNAPSHOT.jar</systemPath>
       </dependency>
 
   </dependencies>
