@@ -22,7 +22,6 @@ import ldif.entity._
 import org.slf4j.LoggerFactory
 import ldif.entity.Restriction._
 import collection.mutable.{ArraySeq, ArrayBuffer, Set, HashSet}
-import actors.{Future, Futures}
 import runtime.impl.{QuadQueue, MultiQuadReader}
 import scala.collection.JavaConversions._
 import ldif.local.runtime.{LocalNode, EntityWriter, ConfigParameters}
@@ -31,6 +30,9 @@ import ldif.util.{Consts, Uri}
 import util.{EntityBuilderReportPublisher, StringPool}
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 import ldif.runtime.{QuadReader, Quad}
+import scala.concurrent.{ExecutionContext, Await, Future}
+import scala.concurrent.duration.Duration
+import ExecutionContext.Implicits.global
 
 class EntityBuilder (entityDescriptions : IndexedSeq[EntityDescription], readers : Seq[QuadReader], config: ConfigParameters, reporter : EntityBuilderReportPublisher) extends FactumBuilder with EntityBuilderTrait {
   private val log = LoggerFactory.getLogger(getClass.getName)
@@ -419,7 +421,7 @@ class EntityBuilder (entityDescriptions : IndexedSeq[EntityDescription], readers
 
   // Return a table which describe the tree structure of the pattern
   private def getTreeStructure(paths : IndexedSeq[Path]) : Array[Array[Int]] = {
-      val treeStructure = new Array[Array[Int]](paths.size,paths.size)
+      val treeStructure = new Array[Array[Int]](paths.size)
       var any = true
       for((aa, a) <- paths.zipWithIndex; (bb, b) <- paths.zipWithIndex)
           if (aa != bb)
@@ -444,7 +446,7 @@ class EntityBuilder (entityDescriptions : IndexedSeq[EntityDescription], readers
   }
 
   private def forkAll(futures: Seq[Future[Any]]) {
-    Futures.awaitAll(Consts.MAX_WAITING_TIME, futures: _*)
+    Await.ready(Future.sequence(futures), Duration.Inf)
   }
 
   private def min(a:Int , b:Int) =  if (a<b) a else b
