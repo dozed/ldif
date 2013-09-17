@@ -130,10 +130,12 @@ class QuadCollection {
   }
 }
 
-class FileQuadWritableWriter(outputFile: File) extends FileObjectWriter[Quad](outputFile, NoQuadLeft)
+class FileQuadWritableWriter(outputFile: File) extends FileObjectWriter[Quad](outputFile, NoQuadLeft.marker)
 
-class FileQuadWritableReader(inputFile: File) extends FileObjectReader[Quad](inputFile, NoQuadLeft)
+class FileQuadWritableReader(inputFile: File) extends FileObjectReader[Quad](inputFile, NoQuadLeft.marker)
 
-case object NoQuadLeft extends Quad(null, "", null, "")
+object NoQuadLeft {
+  val marker = Quad(null, null, null, null)
+}
 
 
