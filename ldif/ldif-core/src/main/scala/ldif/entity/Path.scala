@@ -20,7 +20,7 @@ package ldif.entity
 
 import collection.mutable.{SynchronizedMap, WeakHashMap}
 import ldif.util.Prefixes
-import actors.threadpool.AtomicInteger
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Represents an RDF path.
