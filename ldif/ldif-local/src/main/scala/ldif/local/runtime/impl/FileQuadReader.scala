@@ -33,7 +33,7 @@ import ldif.runtime.impl.FileObjectReader
  * To change this template use File | Settings | File Templates.
  */
 
-class FileQuadReader(inputFile: File, numberOfQuads: Int = 0) extends FileObjectReader[Quad](inputFile, NoQuadsLeft, numberOfObjects = numberOfQuads) with CloneableQuadReader {
+class FileQuadReader(inputFile: File, numberOfQuads: Int = 0) extends FileObjectReader[Quad](inputFile, NoQuadsLeft.marker, numberOfObjects = numberOfQuads) with CloneableQuadReader {
   def cloneReader = new FileQuadReader(inputFile)
 
   /**

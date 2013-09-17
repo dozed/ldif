@@ -93,11 +93,11 @@ class BlockingQuadQueue(capacity: Int) extends QuadReader with QuadWriter {
     else if (buffered)
       true
     else if (quadQueue.size>0) {
-      !(quadQueue.peek eq NoQuadsLeft)
+      !(quadQueue.peek eq NoQuadsLeft.marker)
     }
     else {
       quadQueue.take match {
-        case NoQuadsLeft => closed=true; false
+        case NoQuadsLeft.marker => closed=true; false
         case quad => bufferedQuad = quad; buffered=true; true
       }
     }
@@ -116,13 +116,15 @@ class BlockingQuadQueue(capacity: Int) extends QuadReader with QuadWriter {
    */
   override def finish() {
     stillArriving = false
-    write(NoQuadsLeft)
+    write(NoQuadsLeft.marker)
     totalSize = totalSize -1
   }
 
 }
 
 /**
- * This object signals the end of quads for an QuadQueue
+ * This value signals the end of quads for an QuadQueue
  */
-case object NoQuadsLeft extends Quad(null,null,null,null)
+object NoQuadsLeft {
+  val marker = Quad(null,null,null,null)
+}
