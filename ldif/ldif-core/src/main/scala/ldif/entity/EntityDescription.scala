@@ -64,9 +64,9 @@ object EntityDescription
       },
       patterns = (xml \ "Patterns").headOption match {
         case Some(p) =>
-          for(patternNode <- (p \ "Pattern").toIndexedSeq[scala.xml.Node]) yield
+          for(patternNode <- (p \ "Pattern").toIndexedSeq) yield
           {
-            for(pathNode <- (patternNode \ "Path").toIndexedSeq[scala.xml.Node]) yield
+            for(pathNode <- (patternNode \ "Path").toIndexedSeq) yield
             {
               Path.parse(pathNode.text)
             }
