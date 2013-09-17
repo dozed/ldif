@@ -34,7 +34,6 @@ import java.io._
 import akka.actor._
 import akka.routing.{Broadcast, SmallestMailboxRouter}
 import scala.concurrent.Await
-import scala.concurrent.duration.Duration
 import scala.concurrent.duration._
 import java.util.concurrent.CountDownLatch
 import akka.util.Timeout
@@ -74,61 +73,6 @@ class QuadFileLoader(graphURI: String = Consts.DEFAULT_GRAPH, discardFaultyQuads
     errorList
   }
 
-  def validateQuadsMT(input: BufferedReader): Seq[Pair[Int, String]] = {
-    LocalNode.setUseStringPool(false)
-    val numParsers = 10
-    val doneLatch = new CountDownLatch(numParsers)
-    val queryLatch = new CountDownLatch(1)
-
-    // setup actor system
-    import system.dispatcher
-    val system = ActorSystem("QuadFileLoaderSystem")
-
-    val quadWriterActor = system.actorOf(Props[QuadValidationActor](new QuadValidationActor()))
-
-    val smallestMailboxRouter = system.actorOf(
-      Props[QuadParserActor](new QuadParserActor(quadWriterActor, graphURI, doneLatch))
-        .withRouter(SmallestMailboxRouter(numParsers)), "parserRouter")
-
-    var loop = true
-    var counter = 0
-    var nextCounterStep = 0
-    val lines = new ArrayBuffer[String]
-
-    while (loop) {
-      val line = input.readLine()
-
-      // aggregate lines
-      if (line == null) {
-        loop = false
-      } else {
-        counter += 1
-        lines.append(line)
-      }
-
-      // send out lines to parser
-      if (counter % 100 == 0 || loop == false) {
-        smallestMailboxRouter ! QuadStrings(nextCounterStep, lines)
-        lines.clear
-        nextCounterStep += 100
-      }
-    }
-
-    // wait until all parser actors are finished
-    smallestMailboxRouter ! Broadcast(Finish)
-    doneLatch.await
-
-    // query errors
-    val f = akka.pattern.ask(quadWriterActor, GetErrors).mapTo[Errors]
-    val errorMessage = Await.result(f, Duration.Inf)
-
-    // shutdown actor system
-    system.shutdown()
-
-    LocalNode.setUseStringPool(true)
-    return errorMessage.quadErrors
-  }
-
   def readQuads(input: BufferedReader, quadQueue: QuadWriter) {
     var loop = true
     var faultyRead = false
@@ -138,11 +82,10 @@ class QuadFileLoader(graphURI: String = Consts.DEFAULT_GRAPH, discardFaultyQuads
 
     while (loop) {
       val line = input.readLine()
-      var quad: Quad = null
 
-      if (line == null)
+      if (line == null) {
         loop = false
-      else {
+      } else {
         quadParser.parseLineAsOpt(line) match {
           case Some(quad) => quadQueue.write(quad)
           case None =>
@@ -158,8 +101,25 @@ class QuadFileLoader(graphURI: String = Consts.DEFAULT_GRAPH, discardFaultyQuads
       throw new RuntimeException("Found errors while parsing NT/NQ file. Found " + nrOfErrors + " parse errors. See log file for more details.")
   }
 
-  def readQuadsMT(input: BufferedReader, quadWriter: QuadWriter) {
+  def validateQuadsMT(input: BufferedReader): Seq[Pair[Int, String]] = {
+    LocalNode.setUseStringPool(false)
 
+    val errorMessage = processQuads(input, new QuadValidationActor())
+
+    LocalNode.setUseStringPool(true)
+    errorMessage.quadErrors
+  }
+
+  def readQuadsMT(input: BufferedReader, quadWriter: QuadWriter) {
+    val errorMessage = processQuads(input, new QuadWriterActor(quadWriter))
+
+    val errors = errorMessage.quadErrors
+
+    if (errors.size > 0)
+      throw new RuntimeException("Found errors while parsing NT/NQ file. Found " + errors.size + " parse errors. Please set 'validateSources' to true and rerun for error details.")
+  }
+
+  def processQuads(input: BufferedReader, processorActor: => Actor): Errors = {
     val numParsers = 10
     val doneLatch = new CountDownLatch(numParsers)
 
@@ -167,16 +127,19 @@ class QuadFileLoader(graphURI: String = Consts.DEFAULT_GRAPH, discardFaultyQuads
     import system.dispatcher
     val system = ActorSystem("QuadFileLoaderSystem")
 
-    val quadWriterActor = system.actorOf(Props[QuadWriterActor](new QuadWriterActor(quadWriter)))
+    val quadWriterActor = system.actorOf(Props[Actor](processorActor))
+
+    val routees = (1 to numParsers) map { i =>
+      system.actorOf(Props[QuadParserActor](new QuadParserActor(quadWriterActor, graphURI, doneLatch)))
+    }
 
     val smallestMailboxRouter = system.actorOf(
-      Props[QuadParserActor](new QuadParserActor(quadWriterActor, graphURI, doneLatch))
-        .withRouter(SmallestMailboxRouter(numParsers)), "parserRouter")
+      Props.empty.withRouter(SmallestMailboxRouter(routees)), "parserRouter")
 
     var loop = true
     var counter = 0
     var nextCounterStep = 0
-    val lines = new ArrayBuffer[String]
+    var lines = new ArrayBuffer[String]
 
     while (loop) {
       val line = input.readLine()
@@ -192,7 +155,7 @@ class QuadFileLoader(graphURI: String = Consts.DEFAULT_GRAPH, discardFaultyQuads
       // send out lines to parser
       if (counter % 100 == 0 || loop == false) {
         smallestMailboxRouter ! QuadStrings(nextCounterStep, lines)
-        lines.clear
+        lines = new ArrayBuffer[String]
         nextCounterStep += 100
       }
     }
@@ -208,11 +171,9 @@ class QuadFileLoader(graphURI: String = Consts.DEFAULT_GRAPH, discardFaultyQuads
     // shutdown actor system
     system.shutdown()
 
-    val errors = errorMessage.quadErrors
-
-    if (errors.size > 0)
-      throw new RuntimeException("Found errors while parsing NT/NQ file. Found " + errors.size + " parse errors. Please set 'validateSources' to true and rerun for error details.")
+    errorMessage
   }
+
 }
 
 object MTTest {
@@ -220,7 +181,7 @@ object MTTest {
     println("Starting...")
     val start = System.currentTimeMillis
     //    val reader = new BufferedReader(new FileReader("/home/andreas/cordis_dump.nt"))
-    val reader = new BufferedReader(new FileReader("/home/andreas/aba.nt"))
+    val reader = new BufferedReader(new FileReader("/home/stefan/Code/diplom-code/ldif-geo/geo/integrated_reegle_geonames.nt"))
     val loader = new QuadFileLoader("irrelevant")
     val quadWriter = new QuadWriter {
       def write(quad: Quad) {
@@ -300,7 +261,7 @@ class QuadValidationActor() extends Actor {
 
   def receive = {
     case Errors(quadErrors) => allErrors ++= quadErrors // accumulate errors
-    case GetErrors => Errors(allErrors.sortWith(_._1 < _._1)) // reply with errors
+    case GetErrors => sender ! Errors(allErrors.sortWith(_._1 < _._1)) // reply with errors
     case _ => // ignore other messages
   }
 
@@ -313,7 +274,7 @@ class QuadWriterActor(quadWriter: QuadWriter) extends Actor {
   def receive = {
     case QuadsMessage(quads) => for (quad <- quads) quadWriter.write(quad)
     case Errors(quadErrors) => allErrors ++= quadErrors
-    case GetErrors => Errors(allErrors.sortWith(_._1 < _._1))
+    case GetErrors => sender ! Errors(allErrors.sortWith(_._1 < _._1))
     case _ =>
   }
 }
