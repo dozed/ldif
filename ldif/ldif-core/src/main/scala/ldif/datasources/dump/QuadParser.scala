@@ -22,6 +22,8 @@ import ldif.runtime.Quad
 import ldif.util.Consts
 import org.antlr.runtime.{CommonTokenStream, ANTLRStringStream}
 import parser.{ParseException, NQuadParser, NQuadLexer}
+import scala.util.control.Exception._
+import ldif.runtime.Quad
 
 /**
  * N-Quad/N-Triple Parser
@@ -30,6 +32,13 @@ import parser.{ParseException, NQuadParser, NQuadLexer}
 class QuadParser(graphURI: String) {
   def this() {
     this(Consts.DEFAULT_GRAPH)
+  }
+
+  def parseLineAsOpt(line: String): Option[Quad] = {
+    allCatch withTry {
+      val quad = parseLine(line)
+      Option(quad)
+    } getOrElse None
   }
 
   /**
