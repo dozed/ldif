@@ -181,7 +181,7 @@ object MTTest {
     println("Starting...")
     val start = System.currentTimeMillis
     //    val reader = new BufferedReader(new FileReader("/home/andreas/cordis_dump.nt"))
-    val reader = new BufferedReader(new FileReader("/home/stefan/Code/diplom-code/ldif-geo/geo/integrated_reegle_geonames.nt"))
+    val reader = new BufferedReader(new FileReader("/home/andreas/aba.nt"))
     val loader = new QuadFileLoader("irrelevant")
     val quadWriter = new QuadWriter {
       def write(quad: Quad) {
