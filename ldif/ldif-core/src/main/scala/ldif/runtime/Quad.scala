@@ -90,6 +90,8 @@ class BackwardComparator extends Comparator[Quad] {
 }
 
 /**
- * Convenience class, should only be used internally!
+ * Convenience factory, should only be used internally!
  */
-case class Triple(override val subject : NodeTrait, override val predicate : String, override val value : NodeTrait) extends Quad(subject, predicate, value, Consts.DEFAULT_GRAPH)
+object Triple {
+  def apply(subject : NodeTrait, predicate : String, value : NodeTrait) = Quad(subject, predicate, value, Consts.DEFAULT_GRAPH)
+}
