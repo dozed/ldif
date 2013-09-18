@@ -20,7 +20,7 @@ package ldif.local.datasources.dump
 
 import ldif.local.runtime.LocalNode
 import ldif.local.runtime.impl.{FileQuadReader, FileQuadWriter, DummyQuadWriter}
-import ldif.datasources.dump.QuadParser
+import ldif.datasources.dump.{ParseError, NoResult, QuadResult, QuadParser}
 import ldif.runtime.QuadWriter
 import ldif.util.Consts
 import ldif.util.TemporaryFileCreator
@@ -61,9 +61,10 @@ class QuadFileLoader(graphURI: String = Consts.DEFAULT_GRAPH, discardFaultyQuads
 
     var line: String = input.readLine()
     while (line != null) {
-      quadParser.parseLineAsOpt(line) match {
-        case Some(quad) =>
-        case None =>
+      quadParser.parseLineAsParseResult(line) match {
+        case QuadResult(q) =>
+        case NoResult =>
+        case ParseError(e) =>
           errorList += Pair(lineNr, line)
       }
       line = input.readLine()
@@ -86,9 +87,11 @@ class QuadFileLoader(graphURI: String = Consts.DEFAULT_GRAPH, discardFaultyQuads
       if (line == null) {
         loop = false
       } else {
-        quadParser.parseLineAsOpt(line) match {
-          case Some(quad) => quadQueue.write(quad)
-          case None =>
+        quadParser.parseLineAsParseResult(line) match {
+          case QuadResult(q) =>
+            quadQueue.write(q)
+          case NoResult =>
+          case ParseError(e) =>
             if (!discardFaultyQuads)
               faultyRead = true
             nrOfErrors += 1
@@ -183,14 +186,7 @@ object MTTest {
     //    val reader = new BufferedReader(new FileReader("/home/andreas/cordis_dump.nt"))
     val reader = new BufferedReader(new FileReader("/home/andreas/aba.nt"))
     val loader = new QuadFileLoader("irrelevant")
-    val quadWriter = new QuadWriter {
-      def write(quad: Quad) {
-        println(quad)
-      }
-
-      def finish() {}
-    }
-    loader.readQuadsMT(reader, quadWriter)
+    loader.readQuadsMT(reader, new DummyQuadWriter)
     //    val results = loader.validateQuadsMT(reader)
     //    if(results.size>0)
     //      println(results.size + " errors found.")
@@ -235,18 +231,20 @@ class QuadParserActor(quadConsumer: ActorRef, graphURI: String, doneLatch: Count
     val quads = new ArrayBuffer[Quad]
 
     for ((line, index) <- lines.zipWithIndex) {
-      parser.parseLineAsOpt(line) match {
-        case Some(quad) => quads.append(quad)
-        case None =>
+      parser.parseLineAsParseResult(line) match {
+        case QuadResult(q) => quads.append(q)
+        case NoResult =>
+        case ParseError(e) =>
           val idx: Int = globalIndex + index + 1 // TODO check
           errors.append(Pair(idx, line))
       }
     }
 
-    if (errors.size > 0)
+    if (errors.size > 0) {
       quadConsumer ! Errors(errors)
-    else
+    } else {
       quadConsumer ! QuadsMessage(quads)
+    }
   }
 
   def receive = {

@@ -29,9 +29,25 @@ import ldif.runtime.Quad
  * N-Quad/N-Triple Parser
  */
 
+sealed trait ParseResult
+case class ParseError(e: Throwable) extends ParseResult
+case class QuadResult(q: Quad) extends ParseResult
+case object NoResult extends ParseResult
+
 class QuadParser(graphURI: String) {
   def this() {
     this(Consts.DEFAULT_GRAPH)
+  }
+
+  def parseLineAsParseResult(line: String): ParseResult = {
+    allCatch either {
+      val quad = parseLine(line)
+      Option(quad)
+    } match {
+      case Left(e) => ParseError(e)
+      case Right(Some(q)) => QuadResult(q)
+      case Right(None) => NoResult
+    }
   }
 
   def parseLineAsOpt(line: String): Option[Quad] = {
