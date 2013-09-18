@@ -37,6 +37,8 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 import java.util.concurrent.CountDownLatch
 import akka.util.Timeout
+import akka.dispatch.{RequiresMessageQueue, BoundedMessageQueueSemantics}
+import com.typesafe.config.ConfigFactory
 
 /**
  * Created by IntelliJ IDEA.
@@ -74,12 +76,12 @@ class QuadFileLoader(graphURI: String = Consts.DEFAULT_GRAPH, discardFaultyQuads
     errorList
   }
 
-  def readQuads(input: BufferedReader, quadQueue: QuadWriter) {
+  def readQuads(input: BufferedReader, quadQueue: QuadWriter): LoaderResult = {
     var loop = true
-    var faultyRead = false
 
-    var counter = 1;
-    var nrOfErrors = 0;
+    var counter = 1
+    var importedQuads = 0
+    val errorList = ArrayBuffer[(Int, String)]()
 
     while (loop) {
       val line = input.readLine()
@@ -90,50 +92,65 @@ class QuadFileLoader(graphURI: String = Consts.DEFAULT_GRAPH, discardFaultyQuads
         quadParser.parseLineAsParseResult(line) match {
           case QuadResult(q) =>
             quadQueue.write(q)
+            importedQuads += 1
           case NoResult =>
           case ParseError(e) =>
-            if (!discardFaultyQuads)
-              faultyRead = true
-            nrOfErrors += 1
-            log.warn("Parse error found at line " + counter + ". Input line: " + line)
+            errorList += ((counter, line))
+            log.warn(f"Parse error found at line $counter. Input line: $line")
         }
       }
       counter += 1
     }
-    if (faultyRead)
-      throw new RuntimeException("Found errors while parsing NT/NQ file. Found " + nrOfErrors + " parse errors. See log file for more details.")
+    if (!discardFaultyQuads && errorList.size > 0)
+      throw new RuntimeException(f"Found errors while parsing NT/NQ file. Found ${errorList.size} parse errors. See log file for more details.")
+
+    LoaderResult(importedQuads, errorList)
   }
 
   def validateQuadsMT(input: BufferedReader): Seq[Pair[Int, String]] = {
     LocalNode.setUseStringPool(false)
 
-    val errorMessage = processQuads(input, new QuadValidationActor())
+    val errorMessage = processQuads(input, new DummyQuadWriter)
 
     LocalNode.setUseStringPool(true)
-    errorMessage.quadErrors
+    errorMessage.errors
   }
 
-  def readQuadsMT(input: BufferedReader, quadWriter: QuadWriter) {
-    val errorMessage = processQuads(input, new QuadWriterActor(quadWriter))
+  def readQuadsMT(input: BufferedReader, quadWriter: QuadWriter): LoaderResult = {
+    val result = processQuads(input, quadWriter)
 
-    val errors = errorMessage.quadErrors
+    if (result.invalidQuads > 0)
+      throw new RuntimeException(f"Found errors while parsing NT/NQ file. Found ${result.invalidQuads} parse errors. Please set 'validateSources' to true and rerun for error details.")
 
-    if (errors.size > 0)
-      throw new RuntimeException("Found errors while parsing NT/NQ file. Found " + errors.size + " parse errors. Please set 'validateSources' to true and rerun for error details.")
+    result
   }
 
-  def processQuads(input: BufferedReader, processorActor: => Actor): Errors = {
-    val numParsers = 10
+  private def processQuads(input: BufferedReader, quadWriter: QuadWriter): LoaderResult = {
+    val numParsers = 4
     val doneLatch = new CountDownLatch(numParsers)
 
+    // bounded consumer mailbox prevents that the mailbox overflows (OutOfMemory)
+    // since the consumer is slower compared to the producers due to Quad -> Byte conversion and disk I/O
+    val config: String = """bounded-mailbox {
+                           |    mailbox-type = "akka.dispatch.BoundedMailbox"
+                           |    mailbox-capacity = 200
+                           |    mailbox-push-timeout-time = 10s
+                           |}
+                           |
+                           |akka.actor.mailbox.requirements {
+                           |    "akka.dispatch.BoundedMessageQueueSemantics" = bounded-mailbox
+                           |}
+                           |
+                           | """.stripMargin
+
     // setup actor system
-    import system.dispatcher
-    val system = ActorSystem("QuadFileLoaderSystem")
+    val system = ActorSystem("QuadFileLoaderSystem", ConfigFactory.load(ConfigFactory.parseString(config)))
 
-    val quadWriterActor = system.actorOf(Props[Actor](processorActor))
+    val quadWriterActor = system.actorOf(Props[QuadWriterActor](new QuadWriterActor(quadWriter)))
 
-    val routees = (1 to numParsers) map { i =>
-      system.actorOf(Props[QuadParserActor](new QuadParserActor(quadWriterActor, graphURI, doneLatch)))
+    val routees = (1 to numParsers) map {
+      i =>
+        system.actorOf(Props[QuadParserActor](new QuadParserActor(quadWriterActor, graphURI, doneLatch)))
     }
 
     val smallestMailboxRouter = system.actorOf(
@@ -168,13 +185,13 @@ class QuadFileLoader(graphURI: String = Consts.DEFAULT_GRAPH, discardFaultyQuads
     doneLatch.await
 
     // query errors
-    val f = akka.pattern.ask(quadWriterActor, GetErrors).mapTo[Errors]
-    val errorMessage = Await.result(f, Duration.Inf)
+    val f = akka.pattern.ask(quadWriterActor, GetLoaderResult).mapTo[LoaderResult]
+    val result = Await.result(f, Duration.Inf)
 
     // shutdown actor system
     system.shutdown()
 
-    errorMessage
+    result
   }
 
 }
@@ -186,7 +203,15 @@ object MTTest {
     //    val reader = new BufferedReader(new FileReader("/home/andreas/cordis_dump.nt"))
     val reader = new BufferedReader(new FileReader("/home/andreas/aba.nt"))
     val loader = new QuadFileLoader("irrelevant")
-    loader.readQuadsMT(reader, new DummyQuadWriter)
+    val writer = new OutputStreamWriter(new FileOutputStream("/tmp/1"))
+
+    val result = loader.readQuadsMT(reader, new QuadWriter {
+      def finish() {}
+
+      def write(quad: Quad) {
+        writer.write(quad.toLine)
+      }
+    })
     //    val results = loader.validateQuadsMT(reader)
     //    if(results.size>0)
     //      println(results.size + " errors found.")
@@ -231,12 +256,11 @@ class QuadParserActor(quadConsumer: ActorRef, graphURI: String, doneLatch: Count
     val quads = new ArrayBuffer[Quad]
 
     for ((line, index) <- lines.zipWithIndex) {
+      val idx: Int = globalIndex + index + 1 // TODO check
       parser.parseLineAsParseResult(line) match {
         case QuadResult(q) => quads.append(q)
         case NoResult =>
-        case ParseError(e) =>
-          val idx: Int = globalIndex + index + 1 // TODO check
-          errors.append(Pair(idx, line))
+        case ParseError(e) => errors.append(Pair(idx, line))
       }
     }
 
@@ -253,36 +277,32 @@ class QuadParserActor(quadConsumer: ActorRef, graphURI: String, doneLatch: Count
   }
 }
 
-class QuadValidationActor() extends Actor {
+class QuadWriterActor(quadWriter: QuadWriter) extends Actor with RequiresMessageQueue[BoundedMessageQueueSemantics] {
 
   private val allErrors = new ArrayBuffer[Pair[Int, String]]
 
-  def receive = {
-    case Errors(quadErrors) => allErrors ++= quadErrors // accumulate errors
-    case GetErrors => sender ! Errors(allErrors.sortWith(_._1 < _._1)) // reply with errors
-    case _ => // ignore other messages
-  }
-
-}
-
-class QuadWriterActor(quadWriter: QuadWriter) extends Actor {
-
-  private val allErrors = new ArrayBuffer[Pair[Int, String]]
+  private var importedQuads = 0
 
   def receive = {
-    case QuadsMessage(quads) => for (quad <- quads) quadWriter.write(quad)
+    case QuadsMessage(quads) =>
+      importedQuads += quads.size
+      for (quad <- quads) quadWriter.write(quad)
     case Errors(quadErrors) => allErrors ++= quadErrors
-    case GetErrors => sender ! Errors(allErrors.sortWith(_._1 < _._1))
+    case GetLoaderResult => sender ! LoaderResult(importedQuads, allErrors.sortWith(_._1 < _._1))
     case _ =>
   }
 }
 
-case class QuadsMessage(val quads: Iterable[Quad])
+case class QuadsMessage(val quads: Seq[Quad])
 
 case class QuadStrings(val counter: Int, val quads: Seq[String])
 
 case class Errors(val quadErrors: Seq[Pair[Int, String]])
 
-case object GetErrors
+case class LoaderResult(val importedQuads: Int, val errors: Seq[Pair[Int, String]]) {
+  val invalidQuads = errors.size
+}
+
+case object GetLoaderResult
 
 case object Finish

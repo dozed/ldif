@@ -18,16 +18,12 @@
 
 package ldif.local.scheduler
 
-import ldif.local.datasources.dump.DumpLoader
-import java.io.{OutputStream, InputStream}
+import ldif.local.datasources.dump.{QuadFileLoader, DumpLoader}
+import java.io._
 import org.slf4j.LoggerFactory
 import java.util.Properties
 import ldif.util._
-import ldif.datasources.dump.QuadParser
-import java.nio.charset.MalformedInputException
-import ldif.datasources.dump.parser.ParseException
-import scala.Some
-import ldif.runtime.Quad
+import ldif.runtime.{QuadWriter, Quad}
 
 /**
  * Abstract class for dump based import jobs
@@ -60,7 +56,7 @@ abstract class DumpImportJob(dumpLocation : String) extends ImportJob {
    * @param processQuad function that will be applied to each valid quad found
    * @return Boolean true when the dump is loaded correctly, false otherwise
    */
-  def loadDump(out : OutputStream, estimatedNumberOfQuads : Option[Double] = None, parameters : Properties = new Properties, processQuad : (Quad => Quad) = null) : Boolean = {
+  def loadDump(out : OutputStream, estimatedNumberOfQuads : Option[Double] = None, parameters : Properties = new Properties, processQuad : (Quad => Quad) = identity[Quad]) : Boolean = {
 
     JobMonitor.addPublisher(getReporter)
     getReporter.setStartTime()
@@ -71,49 +67,35 @@ abstract class DumpImportJob(dumpLocation : String) extends ImportJob {
 
     // Get an InputStream from given dump location
     val inputStream = getInputStream(parameters).getOrElse(return false)
+    val bufferedReader = new BufferedReader(new InputStreamReader(inputStream))
 
-    val parser = new QuadParser(graph)
-    val lines = scala.io.Source.fromInputStream(inputStream)("UTF-8").getLines()
-    var invalidQuads = 0
+    val loader = new QuadFileLoader(graph)
+    val quadWriter = new QuadWriter {
+      def finish() { }
 
-    // Catch dump encoding issues (only UTF-8 is supported)
-    val traversableLines =
-      try {
-        lines.toTraversable
-      } catch {
-        case e : MalformedInputException => {
-          log.warn("An invalid character encoding has been detected for the dump "+dumpLocation+". Please use UTF-8.")
-          Traversable.empty[String]
-        }
-      }
-
-    for (line <- traversableLines){
-      var quad : Quad = null
-      try {
-        quad = parser.parseLine(line)
-      }
-      catch {
-        case e:ParseException => {
-          // Skip invalid quads
-          invalidQuads  += 1
-          getReporter.invalidQuads.incrementAndGet()
-          log.debug("Invalid quad found: "+line)
-        }
-      }
-      if (quad != null) {
-        if(processQuad != null) {
-          quad = processQuad(quad)
-        }
-        importedQuadsNumber += 1
+      def write(quad: Quad) {
         writer.write(quad)
       }
     }
 
-    if (invalidQuads>0) {
-      log.warn("Invalid quads ("+invalidQuads+") found and skipped in "+ dumpLocation)
+    val loadDumpsMT = true
+
+    val result = {
+      if (loadDumpsMT) {
+        loader.readQuadsMT(bufferedReader, quadWriter)
+      } else {
+        loader.readQuads(bufferedReader, quadWriter)
+      }
     }
 
-    log.debug(importedQuadsNumber + " valid quads loaded from "+id+" ("+dumpLocation+")" )
+    getReporter.invalidQuads.set(result.invalidQuads)
+    importedQuadsNumber = result.importedQuads
+
+    if (result.invalidQuads > 0) {
+      log.warn(f"Invalid quads (${result.invalidQuads}) found and skipped in $dumpLocation")
+    }
+
+    log.debug(f"$importedQuadsNumber valid quads loaded from $id ($dumpLocation)" )
 
     writer.flush()
     writer.close()

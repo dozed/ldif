@@ -397,12 +397,17 @@ case class IntegrationJob (config : IntegrationConfig, debugMode : Boolean = fal
     //   }  else
     val quadQueue = new BlockingQuadQueue(Consts.DEFAULT_QUAD_QUEUE_CAPACITY)
     val discardFaultyQuads = config.properties.getProperty("discardFaultyQuads", "false").toLowerCase=="true"
+    val loadDumpsMT = config.properties.getProperty("loadDumpsMT", "false").toLowerCase=="true"
     runInBackground
     {
       val inputStream = DumpLoader.getFileStream(dump)
       val bufferedReader = new BufferedReader(new InputStreamReader(inputStream))
       val quadParser = new QuadFileLoader(dump.getName, discardFaultyQuads)
-      quadParser.readQuads(bufferedReader, quadQueue)
+      if (loadDumpsMT) {
+        quadParser.readQuadsMT(bufferedReader, quadQueue)
+      } else {
+        quadParser.readQuads(bufferedReader, quadQueue)
+      }
       quadQueue.finish
     }
     quadQueue
