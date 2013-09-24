@@ -22,28 +22,16 @@ import ldif.module.Executor
 import ldif.modules.silk.{CreateEntityDescriptions, SilkTask}
 import de.fuberlin.wiwiss.silk.datasource.Source
 import de.fuberlin.wiwiss.silk.execution.{OutputTask, FilterTask, MatchTask, LoadTask}
-import de.fuberlin.wiwiss.silk.output.{LinkWriter, Output}
+import de.fuberlin.wiwiss.silk.output.Output
 import ldif.local.runtime._
-import de.fuberlin.wiwiss.silk.entity.{Entity => SilkEntity, EntityDescription => SilkEntityDescription, Link}
+import de.fuberlin.wiwiss.silk.entity.{Entity => SilkEntity}
+import de.fuberlin.wiwiss.silk.entity.{EntityDescription => SilkEntityDescription}
 import de.fuberlin.wiwiss.silk.util.DPair
 import de.fuberlin.wiwiss.silk.cache.{FileEntityCache, MemoryEntityCache}
 import de.fuberlin.wiwiss.silk.config.RuntimeConfig
 import ldif.runtime.QuadWriter
 import ldif.util.TemporaryFileCreator
 import java.io.File
-import de.fuberlin.wiwiss.silk.plugins.writer.AlignmentFormatter
-
-class AlignmentWriter extends LinkWriter {
-
-  val formatter = new AlignmentFormatter
-
-  def write(link: Link, predicateUri: String) {
-    val r = formatter.format(link, predicateUri)
-    println(r)
-  }
-
-}
-
 
 /**
  * Executes Silk on a local machine.
@@ -80,18 +68,18 @@ class SilkLocalExecutor(useFileInstanceCache: Boolean = false, allowLinksForSame
     reporter.setStatus("10%") // Building instance caches (1/5)
     //Create instance caches
     val caches = if(useFileInstanceCache) {
-      val tempSource = TemporaryFileCreator.createTemporaryDirectory("ldif_silk_s", "", true)
-      val tempTarget = TemporaryFileCreator.createTemporaryDirectory("ldif_silk_t", "", true)
-      tempFiles = Seq(tempSource, tempTarget)
-      DPair(
-        new FileEntityCache(entityDescs.source, linkSpec.rule.index(_), tempSource, config),
-        new FileEntityCache(entityDescs.target, linkSpec.rule.index(_), tempTarget, config)
-      )
-    } else
-      DPair(
-        new MemoryEntityCache(entityDescs.source, linkSpec.rule.index(_), config),
-        new MemoryEntityCache(entityDescs.target, linkSpec.rule.index(_), config)
-      )
+        val tempSource = TemporaryFileCreator.createTemporaryDirectory("ldif_silk_s", "", true)
+        val tempTarget = TemporaryFileCreator.createTemporaryDirectory("ldif_silk_t", "", true)
+        tempFiles = Seq(tempSource, tempTarget)
+        DPair(
+          new FileEntityCache(entityDescs.source, linkSpec.rule.index(_), tempSource, config),
+          new FileEntityCache(entityDescs.target, linkSpec.rule.index(_), tempTarget, config)
+        )
+      } else
+        DPair(
+          new MemoryEntityCache(entityDescs.source, linkSpec.rule.index(_)),
+          new MemoryEntityCache(entityDescs.target, linkSpec.rule.index(_))
+        )
 
     reporter.setStatus("30%") // Loading instance into caches (2/5)
     //Load instances into cache
@@ -102,7 +90,7 @@ class SilkLocalExecutor(useFileInstanceCache: Boolean = false, allowLinksForSame
 
     reporter.setStatus("50%")  // Executing matching (3/5)
     //Execute matching
-    val matchTask = new MatchTask(linkSpec.rule, caches, config, false)
+    val matchTask = new MatchTask(linkSpec.rule, caches, config)
     val links = matchTask()
 
     reporter.setStatus("70%") //Filtering links (4/5)
@@ -113,11 +101,7 @@ class SilkLocalExecutor(useFileInstanceCache: Boolean = false, allowLinksForSame
     reporter.setStatus("90%") // Writing links (5/5)")
     //Write links
     val linkWriter = new LdifLinkWriter(writer, allowLinksForSameURIs)
-
-    val alignmentWriter = new AlignmentWriter
-    val outputs = Output("output", linkWriter) :: Output("outputAlignment", alignmentWriter) :: Nil
-
-    val outputTask = new OutputTask(filteredLinks, linkSpec.linkType, outputs)
+    val outputTask = new OutputTask(filteredLinks, linkSpec.linkType, Output("output", linkWriter) :: Nil)
     outputTask()
     for(tempFile <- tempFiles)
       TemporaryFileCreator.deleteDirOnExit(tempFile)
