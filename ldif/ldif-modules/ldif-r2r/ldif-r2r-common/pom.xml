@@ -12,7 +12,6 @@
         <dependency>
             <groupId>r2rApi</groupId>
             <artifactId>r2rApi</artifactId>
-            <version>0.2.3</version>
         </dependency>
     </dependencies>
 

@@ -283,8 +283,51 @@
         <!--</dependency>-->
     </dependencies>
 
+  <!-- all external jars -->
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>com.hp.hpl.jena</groupId>
+        <artifactId>jena</artifactId>
+        <version>2.6.5-SNAPSHOT</version>
+      </dependency>
+      <dependency>
+        <groupId>com.hp.hpl.jena</groupId>
+        <artifactId>tdb</artifactId>
+        <version>0.8.11-JENA_44-SNAPSHOT</version>
+      </dependency>
+      <dependency>
+        <groupId>com.hp.hpl.jena</groupId>
+        <artifactId>arq</artifactId>
+        <version>2.8.9-JENA_44-SNAPSHOT</version>
+      </dependency>
+      <dependency>
+        <groupId>ldspider</groupId>
+        <artifactId>ldspider</artifactId>
+        <version>285+</version>
+      </dependency>
+      <dependency>
+        <groupId>bzip2</groupId>
+        <artifactId>bzip2</artifactId>
+        <version>0.1</version>
+      </dependency>
+      <dependency>
+        <groupId>nxparser</groupId>
+        <artifactId>nxparser</artifactId>
+        <version>1.1</version>
+      </dependency>
+      <dependency>
+        <groupId>r2rApi</groupId>
+        <artifactId>r2rApi</artifactId>
+        <version>0.2.3</version>
+      </dependency>
+
+    </dependencies>
+  </dependencyManagement>
+
     <repositories>
 
+        <!-- this repository contains all external jars -->
         <repository>
             <id>external-jars</id>
             <name>External Jar Repository</name>
