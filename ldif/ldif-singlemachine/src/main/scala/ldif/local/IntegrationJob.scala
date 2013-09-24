@@ -174,6 +174,19 @@ case class IntegrationJob (config : IntegrationConfig, debugMode : Boolean = fal
         else
           new MultiQuadReader(sameAsLinkReader, sameAsReader)
 
+//        // Execute evaluation
+//        val calculatedAlignment = new File("align-calc.rdf")
+//        val alignmentWriter = new AlignmentApiWriter
+//        for (link <- allSameAsLinks.cloneReader) {
+//          link
+//          alignmentWriter.write()
+//        }
+//
+//        val refAlignment = new File("align-ref.rdf")
+//        val eval = new Evaluation(allSameAsLinks.cloneReader, refAlignment)
+//        eval.writeAlignment(calculatedAlignment)
+
+
         /***  Execute URI Clustering/Translation ***/
         var integratedReader: QuadReader = null
         if(rewriteURIs)
@@ -453,10 +466,11 @@ case class IntegrationJob (config : IntegrationConfig, debugMode : Boolean = fal
   private def generateLinks(linkSpecDir : File, readers : Seq[QuadReader]) : QuadReader = {
     val silkModule = SilkModule.load(linkSpecDir)
     val inmemory = config.properties.getProperty("entityBuilderType", "in-memory")=="in-memory"
+    val alignmentOutFile = Option(config.properties.getProperty("alignmentOutFile")).map(new File(_))
     val silkExecutor = if(inmemory)
-      new SilkLocalExecutor
+      new SilkLocalExecutor(alignmentApiOutput = alignmentOutFile)
     else
-      new SilkLocalExecutor(true)
+      new SilkLocalExecutor(useFileInstanceCache = true, alignmentApiOutput = alignmentOutFile)
     reporter.addPublisher(silkExecutor.reporter)
     reporter.setStatus("Identity Resolution")
 

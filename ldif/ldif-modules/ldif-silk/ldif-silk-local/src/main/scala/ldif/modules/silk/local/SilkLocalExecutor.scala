@@ -36,7 +36,7 @@ import java.io.File
 /**
  * Executes Silk on a local machine.
  */
-class SilkLocalExecutor(useFileInstanceCache: Boolean = false, allowLinksForSameURIs: Boolean = false) extends Executor {
+class SilkLocalExecutor(useFileInstanceCache: Boolean = false, allowLinksForSameURIs: Boolean = false, alignmentApiOutput: Option[File] = None) extends Executor {
 
   type TaskType = SilkTask
 
@@ -101,7 +101,9 @@ class SilkLocalExecutor(useFileInstanceCache: Boolean = false, allowLinksForSame
     reporter.setStatus("90%") // Writing links (5/5)")
     //Write links
     val linkWriter = new LdifLinkWriter(writer, allowLinksForSameURIs)
-    val outputTask = new OutputTask(filteredLinks, linkSpec.linkType, Output("output", linkWriter) :: Nil)
+    val alignmentWriter = alignmentApiOutput.map(file => Output("alignmentOutput", new AlignmentApiWriter(file)))
+    val outputs = Output("output", linkWriter) :: alignmentWriter.toList
+    val outputTask = new OutputTask(filteredLinks, linkSpec.linkType, outputs)
     outputTask()
     for(tempFile <- tempFiles)
       TemporaryFileCreator.deleteDirOnExit(tempFile)

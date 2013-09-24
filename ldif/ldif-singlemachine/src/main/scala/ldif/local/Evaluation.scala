@@ -3,22 +3,11 @@ package ldif.local
 import de.fuberlin.wiwiss.silk.output.LinkWriter
 import de.fuberlin.wiwiss.silk.plugins.writer.AlignmentFormatter
 import de.fuberlin.wiwiss.silk.entity.Link
+import ldif.runtime.QuadReader
+import java.io.File
 
-class AlignmentApiWriter extends LinkWriter {
+class Evaluation(sameAsLinks: QuadReader, refAlignment: File) {
 
-  val formatter = new AlignmentFormatter
-
-  def write(link: Link, predicateUri: String) {
-    val r = formatter.format(link, predicateUri)
-    println(r)
-  }
-
-}
-
-
-class Evaluation {
-
-  val alignmentWriter = new AlignmentApiWriter
 
 
 }
