@@ -36,12 +36,13 @@ import ldif.util._
 import ldif.modules.sieve.fusion.{FusionModule, EmptyFusionConfig, FusionConfig}
 import ldif.modules.sieve.quality.{QualityConfig, QualityModule, EmptyQualityConfig}
 import ldif.config._
-import ldif.modules.silk.local.SilkLocalExecutor
+import ldif.modules.silk.local.{AlignmentApiWriter, SilkLocalExecutor}
 import ldif.modules.sieve.local.{SieveLocalQualityExecutor, SieveLocalFusionExecutor}
 import ldif.modules.sieve.SieveConfig
 import util.{ImportedDumpsUtils, StringPool}
 import scala.collection.mutable.{Set => MSet}
 import ldif.runtime.{Quad, QuadReader, QuadWriter}
+import com.typesafe.config.ConfigFactory
 
 case class IntegrationJob (config : IntegrationConfig, debugMode : Boolean = false) {
 
@@ -66,6 +67,8 @@ case class IntegrationJob (config : IntegrationConfig, debugMode : Boolean = fal
 
   // The number of quads contained in the input dumps - use for progress estimations
   var dumpsQuads : Double = getSourcesQuads
+
+  val ldifConf: LdifConfig = new LdifConfig(ConfigFactory.load())
 
   private def updateReaderAfterR2RPhase(r2rReader: Option[scala.Seq[QuadReader]]): Option[scala.Seq[QuadReader]] = {
     if (isIntialQuadReader(r2rReader.get)) {
@@ -174,17 +177,11 @@ case class IntegrationJob (config : IntegrationConfig, debugMode : Boolean = fal
         else
           new MultiQuadReader(sameAsLinkReader, sameAsReader)
 
-//        // Execute evaluation
-//        val calculatedAlignment = new File("align-calc.rdf")
-//        val alignmentWriter = new AlignmentApiWriter
-//        for (link <- allSameAsLinks.cloneReader) {
-//          link
-//          alignmentWriter.write()
-//        }
-//
-//        val refAlignment = new File("align-ref.rdf")
-//        val eval = new Evaluation(allSameAsLinks.cloneReader, refAlignment)
-//        eval.writeAlignment(calculatedAlignment)
+        // Execute evaluation
+        val alignmentOut = new File(ldifConf.evaluation.output)
+        val alignmentRef = new File(ldifConf.evaluation.reference)
+        val eval = new Evaluation(alignmentRef, alignmentOut)
+        eval.eval()
 
 
         /***  Execute URI Clustering/Translation ***/
@@ -466,11 +463,19 @@ case class IntegrationJob (config : IntegrationConfig, debugMode : Boolean = fal
   private def generateLinks(linkSpecDir : File, readers : Seq[QuadReader]) : QuadReader = {
     val silkModule = SilkModule.load(linkSpecDir)
     val inmemory = config.properties.getProperty("entityBuilderType", "in-memory")=="in-memory"
-    val alignmentOutFile = Option(config.properties.getProperty("alignmentOutFile")).map(new File(_))
-    val silkExecutor = if(inmemory)
+
+    val alignmentOutFile = if (ldifConf.evaluation.active) {
+      Some(new File(ldifConf.evaluation.output))
+    } else {
+      None
+    }
+
+    val silkExecutor = if(inmemory) {
       new SilkLocalExecutor(alignmentApiOutput = alignmentOutFile)
-    else
+    } else {
       new SilkLocalExecutor(useFileInstanceCache = true, alignmentApiOutput = alignmentOutFile)
+    }
+
     reporter.addPublisher(silkExecutor.reporter)
     reporter.setStatus("Identity Resolution")
 
