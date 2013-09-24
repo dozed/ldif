@@ -1,13 +1,15 @@
 package ldif.local
 
-import de.fuberlin.wiwiss.silk.output.LinkWriter
-import de.fuberlin.wiwiss.silk.plugins.writer.AlignmentFormatter
-import de.fuberlin.wiwiss.silk.entity.Link
-import ldif.runtime.QuadReader
 import java.io.File
+import fr.inrialpes.exmo.align.impl.eval.SemPRecEvaluator
+import java.util.Properties
 
-class Evaluation(sameAsLinks: QuadReader, refAlignment: File) {
+class Evaluation(refAlignment: File, foundAlignment: File) {
 
+  val evaluator = new SemPRecEvaluator(???, ???)
 
+  def eval() {
+    evaluator.eval(new Properties())
+  }
 
 }

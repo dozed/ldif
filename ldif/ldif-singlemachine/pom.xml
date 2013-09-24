@@ -176,6 +176,12 @@
         <version>1.0.2</version>
       </dependency>
 
+      <dependency>
+        <groupId>fr.inrialpes.exmo.align</groupId>
+        <artifactId>procalign</artifactId>
+        <version>5.0-SNAPSHOT</version>
+      </dependency>
+
     </dependencies>
 
 </project>
