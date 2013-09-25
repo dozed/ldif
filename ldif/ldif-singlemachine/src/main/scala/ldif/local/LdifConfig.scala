@@ -9,6 +9,7 @@ import com.typesafe.config.Config
  *   active = true
  *   reference = "/home/stefan/Code/diplom-code/ldif-geo/geo/alignment/align-reegle-ref.rdf"
  *   output = "/home/stefan/Code/diplom-code/ldif-geo/geo/alignment/align-silk.rdf"
+ *   results = "/home/stefan/Code/diplom-code/ldif-geo/geo/alignment/align-results.rdf"
  * }
  *
  * Currently only contains the configuration for the evaluation job.
@@ -18,10 +19,10 @@ import com.typesafe.config.Config
 class LdifConfig(config: Config) {
 
   object evaluation {
-    val (active, reference, output) = if (config.hasPath("evaluation.active") && config.getBoolean("evaluation.active")) {
-      (true, config.getString("evaluation.reference"), config.getString("evaluation.output"))
+    val (active, reference, output, results) = if (config.hasPath("evaluation.active") && config.getBoolean("evaluation.active")) {
+      (true, config.getString("evaluation.reference"), config.getString("evaluation.output"), config.getString("evaluation.results"))
     } else {
-      (false, "", "")
+      (false, "", "", "")
     }
   }
 

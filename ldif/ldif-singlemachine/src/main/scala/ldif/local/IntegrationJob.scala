@@ -180,8 +180,8 @@ case class IntegrationJob (config : IntegrationConfig, debugMode : Boolean = fal
         // Execute evaluation
         val alignmentOut = new File(ldifConf.evaluation.output)
         val alignmentRef = new File(ldifConf.evaluation.reference)
-        val eval = new Evaluation(alignmentRef, alignmentOut)
-        eval.eval()
+        val alignmentResults = new File(ldifConf.evaluation.results)
+        Evaluation.eval(alignmentRef, alignmentOut, alignmentResults)
 
 
         /***  Execute URI Clustering/Translation ***/
