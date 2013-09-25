@@ -25,7 +25,12 @@ import xml.{Node, XML}
 import java.util.Properties
 import ldif.util.{ConfigProperties, CommonUtils, ValidatingXMLReaderWithBool, Consts}
 
-case class SchedulerConfig (importJobsFiles : Traversable[File], integrationJob : File, dataSourcesFiles : Traversable[File], dumpLocationDir : String, properties : Properties)  {
+case class SchedulerConfig(importJobsFiles: Traversable[File],
+                           integrationConfigFile: File,
+                           integrationConfig: IntegrationConfig,
+                           dataSourcesFiles: Traversable[File],
+                           dumpLocationDir: String,
+                           properties: Properties) {
 
   def isAnyImportJobDefined = importJobsFiles.size > 0
   def isAnyDataSourceDefined = dataSourcesFiles.size > 0
@@ -46,7 +51,7 @@ case class SchedulerConfig (importJobsFiles : Traversable[File], integrationJob 
           </importJobs>}
       }
       {if (isAnyPropertyDefined) <properties>{properties.getProperty("propertiesFile")}</properties>}
-      <integrationJob>{integrationJob.getCanonicalPath}</integrationJob>
+      <integrationJob>{integrationConfigFile.getCanonicalPath}</integrationJob>
       <dumpLocation>{dumpLocationDir}</dumpLocation>
     </scheduler>}
 }
@@ -57,7 +62,7 @@ object SchedulerConfig
 
   private val schemaLocation = "xsd/SchedulerConfig.xsd"
 
-  def empty = SchedulerConfig(null, null, null, null, new Properties)
+  def empty = SchedulerConfig(null, null, null, null, null, new Properties)
 
   def load = new ValidatingXMLReaderWithBool(fromFile, schemaLocation)
 
@@ -88,12 +93,30 @@ object SchedulerConfig
           sys.exit(1)
         })
     val importJobsFiles = getFiles(xml, "importJob", Seq("xml"))
-    val integrationJobDir = getFile(xml, "integrationJob")
+    val integrationConfigFile = getFile(xml, "integrationJob")
     val dataSourceFiles = getFiles(xml, "dataSources", Seq("xml"))
+
+    val integrationConfig = {
+      if(integrationConfigFile != null)  {
+        var integrationConfig = IntegrationConfig.load(integrationConfigFile)
+        // use dumpLocation as source directory for the integration job
+        integrationConfig = integrationConfig.copy(sources = Traversable(dumpLocationDir))
+        // if properties are not defined for the integration job, then use scheduler properties
+        if (integrationConfig.properties.size == 0) {
+          integrationConfig = integrationConfig.copy(properties = properties)
+        }
+        log.info("Integration job loaded from "+ integrationConfigFile.getCanonicalPath)
+        integrationConfig
+      } else {
+        log.warn("Integration job configuration file not found")
+        null
+      }
+    }
 
     SchedulerConfig(
       importJobsFiles,
-      integrationJobDir,
+      integrationConfigFile,
+      integrationConfig,
       dataSourceFiles,
       dumpLocationDir,
       properties

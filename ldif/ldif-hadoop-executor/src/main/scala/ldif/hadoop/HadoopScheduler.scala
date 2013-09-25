@@ -43,7 +43,7 @@ class HadoopScheduler (val config : SchedulerConfig, debug : Boolean = false) {
 
   // load jobs
   private val importJobs = loadImportJobs(config.importJobsFiles)
-  private val integrationJob : HadoopIntegrationJob = loadIntegrationJob(config.integrationJob)
+  private val integrationJob : HadoopIntegrationJob = new HadoopIntegrationJob(config.integrationConfig, debug)
 
   // init status variables
   private var startup = true
@@ -288,24 +288,6 @@ class HadoopScheduler (val config : SchedulerConfig, debug : Boolean = false) {
   private def getProvenanceFile(job : ImportJob) = new Path(config.dumpLocationDir, job.id +".provenance.nq")
   private def getTmpProvenanceFile(job : ImportJob) = File.createTempFile(job.id+"_provenance_"+Consts.simpleDateFormat.format(new Date()),".nq")
 
-
-  private def loadIntegrationJob(configFile : File) : HadoopIntegrationJob = {
-    if(configFile != null)  {
-      var integrationConfig = IntegrationConfig.load(configFile)
-      // use dumpLocation as source directory for the integration job
-      integrationConfig = integrationConfig.copy(sources = Traversable(config.dumpLocationDir))
-      // if properties are not defined for the integration job, then use scheduler properties
-      if (integrationConfig.properties.size == 0)
-        integrationConfig = integrationConfig.copy(properties = config.properties)
-      val integrationJob = new HadoopIntegrationJob(integrationConfig, debug)
-      log.info("Integration job loaded from "+ configFile.getCanonicalPath)
-      integrationJob
-    }
-    else {
-      log.warn("Integration job configuration file not found")
-      null
-    }
-  }
 
   // Move source File to dest File
   private def moveFile(source : File, dest : File) {
